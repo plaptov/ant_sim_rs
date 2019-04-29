@@ -18,10 +18,14 @@ use crate::systems::{
 use crate::components::{
     colony::Colony,
     ant::Ant,
+    food::Food,
 };
+use rand::Rng;
 
 pub const FIELD_WIDTH: i32 = 800;
 pub const FIELD_HEIGHT: i32 = 400;
+pub const COLONY_COUNT: i32 = 5;
+pub const FOOD_COUNT: u32 = 20;
 
 #[derive(Default)]
 pub struct Simulation<'d, 'e,> {
@@ -31,14 +35,55 @@ pub struct Simulation<'d, 'e,> {
 impl<'d, 'e,> SimpleState for Simulation<'d, 'e,> {
     fn on_start(&mut self, _data: StateData<'_, GameData<'_, '_>>) {
         let world = _data.world;
-        world.add_resource(Field::new(FIELD_WIDTH, FIELD_HEIGHT));
+        let mut field = Field::new(FIELD_WIDTH, FIELD_HEIGHT);
+
         self.initialise_camera(world);
         let sprite_sheet = self.load_sprite_sheet(world);
         let sprite_render = SpriteRender {
             sprite_sheet: sprite_sheet.clone(),
-            sprite_number: 0, // ant is the only one sprite in the sprite_sheet
+            sprite_number: 0, // ant is the first sprite in the sprite_sheet
         };
-        //self.ant_render = Some(sprite_render);
+
+        world.register::<Colony>();
+        world.register::<Ant>();
+        world.register::<SpriteRender>();
+        for _ in 0..COLONY_COUNT {
+            let x = rand::thread_rng().gen_range(0, FIELD_WIDTH);
+            let y = rand::thread_rng().gen_range(0, FIELD_HEIGHT);
+            let home = Coordinate::new(x, y);
+            let mut transform = Transform::default();
+            transform.set_xyz(home.x as f32, home.y as f32, 0.0);
+            world.create_entity()
+                .with(Colony::new(home, 1000u32))
+                .with(SpriteRender {
+                    sprite_sheet: sprite_sheet.clone(),
+                    sprite_number: 1,
+                })
+                .with(transform)
+                .build();
+        }
+        
+        world.register::<Food>();
+        for _ in 0..FOOD_COUNT {
+            let x = rand::thread_rng().gen_range(0, FIELD_WIDTH);
+            let y = rand::thread_rng().gen_range(0, FIELD_HEIGHT);
+            let pos = Coordinate::new(x, y);
+            let mut transform = Transform::default();
+            transform.set_xyz(pos.x as f32, pos.y as f32, 0.0);
+            world.create_entity()
+                .with(Food::new(pos))
+                .with(SpriteRender {
+                    sprite_sheet: sprite_sheet.clone(),
+                    sprite_number: 3,
+                })
+                .with(transform)
+                .build();
+            
+            field.place_food_by_pos(pos);
+        }
+
+        world.add_resource(field);
+        
 
         self.main_dispatcher = Some({
             let mut dispatcher = DispatcherBuilder::new()
@@ -51,33 +96,17 @@ impl<'d, 'e,> SimpleState for Simulation<'d, 'e,> {
 
             dispatcher
         },);
-
-        world.register::<Colony>();
-        world.register::<Ant>();
-        world.register::<SpriteRender>();
-        let home = Coordinate::new(400, 200);
-        let mut transform = Transform::default();
-        transform.set_xyz(home.x as f32, home.y as f32, 0.0);
-        world.create_entity()
-            .with(Colony::new(home, 1000u32))
-            .with(SpriteRender {
-                sprite_sheet: sprite_sheet.clone(),
-                sprite_number: 1,
-            })
-            .with(transform)
-            .build();
     }
     
-    /// Executed repeatedly at stable, predictable intervals (1/60th of a second
-    /// by default).
+    /// Executed repeatedly at stable, predictable intervals (1/60th of a second by default).
     fn fixed_update(&mut self, _data: StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
         Trans::None
     }
 
     /// Executed on every frame immediately, as fast as the engine will allow (taking into account the frame rate limit).
-    fn update(&mut self, _data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
-        self.tick(_data);
-        _data.data.update(&_data.world);
+    fn update(&mut self, data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
+        self.tick(data);
+        data.data.update(&data.world);
         Trans::None
     }
 

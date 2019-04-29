@@ -6,7 +6,8 @@ use amethyst::{
     renderer::{DisplayConfig, DrawFlat2D, Pipeline, RenderBundle, Stage},
     utils::application_root_dir,
     LoggerConfig,
-    core::transform::TransformBundle
+    core::transform::TransformBundle,
+    input::InputBundle,
 };
 use log::LevelFilter;
 
@@ -20,6 +21,7 @@ use crate::bundle::*;
 use crate::states::simulation::Simulation;
 
 fn main() -> amethyst::Result<()> {
+    color_backtrace::install();
     let mut logger_config = LoggerConfig::default();
     logger_config.level_filter = LevelFilter::Error;
     amethyst::start_logger(logger_config);
@@ -42,6 +44,7 @@ fn main() -> amethyst::Result<()> {
             .with_sprite_sheet_processor()
         )?
         .with_bundle(TransformBundle::new())?
+        .with_bundle(InputBundle::<String, String>::new())?
         .with_bundle(AntSimBundle{})?
         ;
     let mut game = Application::new("./", Simulation::new(), game_data)?;

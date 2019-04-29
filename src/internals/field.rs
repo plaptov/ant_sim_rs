@@ -45,6 +45,10 @@ impl Field {
         }
     }
 
+    pub const fn get_cells(&self) -> &Vec<Cell> {
+        &self.cells
+    }
+
     #[inline(always)]
     const fn get_index_in_vec(&self, x: i32, y: i32) -> usize {
         (x * self.height + y) as usize
@@ -120,5 +124,10 @@ impl Field {
         }
 
         steps
+    }
+
+    pub fn place_food_by_pos(&mut self, pos: Coordinate) {
+        let mut cell = self.get_mut_by_pos(pos);
+        cell.food += 10000;
     }
 }
