@@ -1,6 +1,7 @@
 use crate::internals::coordinate::*;
 use crate::internals::cell::*;
 use std::ops::IndexMut;
+use rand::Rng;
 
 /*
 
@@ -33,8 +34,13 @@ impl Field {
         let mut cells = Vec::new();
         for x in 0..width {
             for y in 0..height {
+                let is_obstacle =
+                    //(x & 1 == 1) &&
+                    //(y & 1 == 1) &&
+                    rand::thread_rng().gen_range(0, 100) < 20
+                    ;
                 cells.push(
-                    Cell::new(Coordinate::new(x, y))
+                    Cell::new_ex(Coordinate::new(x, y), is_obstacle)
                 );
             }
         }

@@ -1,7 +1,7 @@
 [package]
 name = "ant_sim_rs"
 version = "0.1.0"
-authors = []
+authors = ["plaptov"]
 edition = "2018"
 
 [dependencies]
@@ -11,3 +11,4 @@ rand = "0.6.5"
 ignore-result = "0.2.0"
 log = "0.4"
 color-backtrace = "0.1"
+image = "0.21.1"

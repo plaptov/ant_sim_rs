@@ -1,15 +1,24 @@
 extern crate amethyst;
-use amethyst::assets::{AssetStorage, Loader};
-use amethyst::core::transform::Transform;
-use amethyst::prelude::*;
-use amethyst::renderer::{
-    Camera, PngFormat, Projection, SpriteRender, SpriteSheet,
-    SpriteSheetFormat, SpriteSheetHandle, Texture, TextureMetadata,
-};
-use amethyst::ecs::prelude::*;
+extern crate image;
 
-use crate::internals::field::Field;
-use crate::internals::coordinate::Coordinate;
+use std::path::PathBuf;
+use amethyst::{
+    assets::{AssetStorage, Loader},
+    core::transform::Transform,
+    prelude::*,
+    renderer::{
+        Camera, PngFormat, Projection, SpriteRender, SpriteSheet,
+        SpriteSheetFormat, SpriteSheetHandle, Texture, TextureMetadata,
+    },
+    ecs::prelude::*,
+};
+
+use image::ImageBuffer;
+
+use crate::internals::{
+    field::Field,
+    coordinate::Coordinate,
+};
 use crate::systems::{
     spawn_ants::SpawnAnts,
     check_cells::CheckCells,
@@ -29,6 +38,7 @@ pub const FOOD_COUNT: u32 = 20;
 
 #[derive(Default)]
 pub struct Simulation<'d, 'e,> {
+    field_texture_file_name: Option<PathBuf>,
     main_dispatcher: Option<Dispatcher<'d, 'e,>,>,
 }
 
@@ -43,6 +53,8 @@ impl<'d, 'e,> SimpleState for Simulation<'d, 'e,> {
             sprite_sheet: sprite_sheet.clone(),
             sprite_number: 0, // ant is the first sprite in the sprite_sheet
         };
+
+        self.make_field_texture(&field, world);
 
         world.register::<Colony>();
         world.register::<Ant>();
@@ -110,12 +122,19 @@ impl<'d, 'e,> SimpleState for Simulation<'d, 'e,> {
         Trans::None
     }
 
+    fn on_stop(&mut self, _data: StateData<'_, GameData<'_, '_>>) {
+        if let Some(file_name) = &self.field_texture_file_name {
+            std::fs::remove_file(file_name).unwrap();
+        }
+    }
+
 }
 
 impl<'d, 'e,> Simulation<'d, 'e,> {
     
     pub fn new() -> Simulation<'d, 'e,> {
         Simulation {
+            field_texture_file_name: None,
             main_dispatcher: None,
         }
     }
@@ -170,4 +189,40 @@ impl<'d, 'e,> Simulation<'d, 'e,> {
             _data.world.maintain();
         }
     }
+
+    fn make_field_texture(&mut self, field: &Field, world: &mut World) {
+        let img = ImageBuffer::from_fn(field.width as u32, field.height as u32, |x, y| {
+            if field.get(x as i32, y as i32).is_obstacle {
+                image::Rgb([60u8, 60u8, 60u8])
+            } else {
+                image::Rgb([255u8, 255u8, 255u8])
+            }
+        });
+
+        let path = std::env::temp_dir().with_file_name("temp_ant_sim_field.png");
+        img.save(&path).unwrap();
+
+        let texture_handle = {
+            let loader = world.read_resource::<Loader>();
+            let texture_storage = world.read_resource::<AssetStorage<Texture>>();
+            loader.load(
+                path.to_str().unwrap(),
+                PngFormat,
+                TextureMetadata::srgb_scale(),
+                (),
+                &texture_storage,
+            )
+        };
+        self.field_texture_file_name = Some(path);
+
+        let mut transform = Transform::default();
+        transform.set_xyz(field.width as f32 / 2.0, field.height as f32 / 2.0, -1.0);
+
+        world
+            .create_entity()
+            .with(transform)
+            .with(texture_handle.clone())
+            .build();
+    }
+
 }
