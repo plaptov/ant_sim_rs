@@ -6,6 +6,7 @@ pub struct Cell {
     pub pheromones: i32,
     pub food: i32,
     pub is_obstacle: bool,
+    pub ants: i32,
 }
 
 impl Cell {
@@ -14,7 +15,8 @@ impl Cell {
             position,
             pheromones: 0,
             food: 0,
-            is_obstacle: false
+            is_obstacle: false,
+            ants: 0,
         }
     }
 
@@ -23,7 +25,8 @@ impl Cell {
             position,
             pheromones: 0,
             food: 0,
-            is_obstacle
+            is_obstacle,
+            ants: 0,
         }
     }
 
