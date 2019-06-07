@@ -10,6 +10,7 @@ use crate::components::{
 use ggez::{Context, GameResult};
 use ggez::event::{EventHandler};
 use ggez::graphics::{self, *};
+use ggez::mint::Point2;
 use rand::Rng;
 
 pub const FIELD_WIDTH: i32 = 800;
@@ -28,8 +29,6 @@ pub struct Simulation {
 impl Simulation {
 
     pub fn new(ctx: &mut Context) -> GameResult<Simulation> {
-        graphics::set_background_color(ctx, graphics::WHITE);
-
         let mut field = Field::new(FIELD_WIDTH, FIELD_HEIGHT);
 
         let mut colonies = vec!{};
@@ -51,7 +50,8 @@ impl Simulation {
 
         let ants = vec!{};
 
-        let pixel = Mesh::new_polyline(ctx, DrawMode::Line(1.0), &[Point2::new(1.0, 1.0), Point2::new(1.0, 1.0)])?;
+        let opt = StrokeOptions::default();
+        let pixel = Mesh::new_rectangle(ctx, DrawMode::Stroke(opt), Rect::new(0.0, 0.0, 1.0, 1.0), graphics::BLACK)?;
 
         Ok(Simulation {
             field,
@@ -98,32 +98,35 @@ impl EventHandler for Simulation {
     /// `graphics::clear()` and end it with
     /// `graphics::present()` and `timer::yield_now()`
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
-        graphics::clear(ctx);
+        graphics::clear(ctx, graphics::WHITE);
 
         for cell in self.field.get_cells() {
-            let mut color = None;
+            let color;
 
             if cell.is_obstacle {
-                color = Some(graphics::BLACK);
+                color = graphics::BLACK;
             }
             else if cell.food > 0 {
-                color = Some(Color::from_rgb(0, 0x64, 0));
+                color = Color::from_rgb(0, 0x64, 0);
             }
             else if cell.ants > 0 {
-                color = Some(Color::from_rgb(0, 0, 0xFF));
+                color = Color::from_rgb(0, 0, 0xFF);
             }
             else if cell.pheromones > 0 {
-                color = Some(Color::from_rgb(0xFF, 0xFF, 0));
+                color = Color::from_rgb(0xFF, 0xFF, 0);
+            }
+            else {
+                continue;
             }
 
-            graphics::draw_ex(ctx, &self.pixel, DrawParam {
-                dest: Point2::new(cell.position.x as f32, cell.position.y as f32),
+            graphics::draw(ctx, &self.pixel, DrawParam {
+                dest: Point2 { x: cell.position.x as f32, y: cell.position.y as f32 },
                 color,
                 .. Default::default()
             })?;
         }
 
-        graphics::present(ctx);
+        graphics::present(ctx)?;
         ggez::timer::yield_now();
         Ok(())
     }
