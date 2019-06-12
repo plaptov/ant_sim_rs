@@ -24,7 +24,9 @@ pub struct Simulation {
     field: Field,
     colonies: Vec<Colony>,
     ants: Vec<Ant>,
-    pixel: Mesh,
+    ant_mesh: Mesh,
+    food_mesh: Mesh,
+    pheromones_mesh: Mesh,
     field_img: Canvas,
 }
 
@@ -53,14 +55,18 @@ impl Simulation {
         let ants = vec!{};
 
         let opt = StrokeOptions::default();
-        let pixel = Mesh::new_rectangle(ctx, DrawMode::Stroke(opt), Rect::new(0.0, 0.0, 1.0, 1.0), Color::from_rgb(0, 0, 255))?;
+        let ant_mesh = Mesh::new_rectangle(ctx, DrawMode::Stroke(opt), Rect::new(0.0, 0.0, 1.0, 1.0), Color::from_rgb(0, 0, 255))?;
+        let food_mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), Rect::new(-1.0, -1.0, 3.0, 3.0), Color::from_rgb(0, 150, 0))?;
+        let pheromones_mesh = Mesh::new_rectangle(ctx, DrawMode::Stroke(opt), Rect::new(0.0, 0.0, 1.0, 1.0), Color::from_rgb(255, 255, 100))?;
         let field_img = field_image::make_field_image(ctx, &field)?;
 
         Ok(Simulation {
             field,
             colonies,
             ants,
-            pixel,
+            ant_mesh,
+            food_mesh,
+            pheromones_mesh,
             field_img,
         })
     }
@@ -105,24 +111,24 @@ impl EventHandler for Simulation {
         graphics::draw(ctx, &self.field_img, DrawParam::default())?;
 
         for cell in self.field.get_cells() {
-            let color;
+            let mesh;
 
             if cell.food > 0 {
-                color = Color::from_rgb(0, 0x64, 0);
+                mesh = &self.food_mesh;
             }
             else if cell.ants > 0 {
-                color = Color::from_rgb(0, 0, 0xFF);
+                mesh = &self.ant_mesh;
             }
             else if cell.pheromones > 0 {
-                color = Color::from_rgb(0xFF, 0xFF, 0);
+                mesh = &self.pheromones_mesh;
             }
             else {
                 continue;
             }
 
-            graphics::draw(ctx, &self.pixel, DrawParam {
+            graphics::draw(ctx, mesh, DrawParam {
                 dest: Point2 { x: cell.position.x as f32, y: cell.position.y as f32 },
-                color,
+                //color,
                 .. Default::default()
             })?;
         }
