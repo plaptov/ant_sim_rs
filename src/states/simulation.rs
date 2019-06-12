@@ -7,6 +7,8 @@ use crate::components::{
     ant::*,
     food::Food,
 };
+use crate::drawing::field_image;
+
 use ggez::{Context, GameResult};
 use ggez::event::{EventHandler};
 use ggez::graphics::{self, *};
@@ -21,9 +23,9 @@ pub const FOOD_COUNT: u32 = 20;
 pub struct Simulation {
     field: Field,
     colonies: Vec<Colony>,
-    foods: Vec<Food>,
     ants: Vec<Ant>,
     pixel: Mesh,
+    field_img: Canvas,
 }
 
 impl Simulation {
@@ -51,14 +53,15 @@ impl Simulation {
         let ants = vec!{};
 
         let opt = StrokeOptions::default();
-        let pixel = Mesh::new_rectangle(ctx, DrawMode::Stroke(opt), Rect::new(0.0, 0.0, 1.0, 1.0), graphics::BLACK)?;
+        let pixel = Mesh::new_rectangle(ctx, DrawMode::Stroke(opt), Rect::new(0.0, 0.0, 1.0, 1.0), Color::from_rgb(0, 0, 255))?;
+        let field_img = field_image::make_field_image(ctx, &field)?;
 
         Ok(Simulation {
             field,
             colonies,
-            foods,
             ants,
             pixel,
+            field_img,
         })
     }
 
@@ -99,14 +102,12 @@ impl EventHandler for Simulation {
     /// `graphics::present()` and `timer::yield_now()`
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         graphics::clear(ctx, graphics::WHITE);
+        graphics::draw(ctx, &self.field_img, DrawParam::default())?;
 
         for cell in self.field.get_cells() {
             let color;
 
-            if cell.is_obstacle {
-                color = graphics::BLACK;
-            }
-            else if cell.food > 0 {
+            if cell.food > 0 {
                 color = Color::from_rgb(0, 0x64, 0);
             }
             else if cell.ants > 0 {

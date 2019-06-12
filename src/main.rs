@@ -10,6 +10,7 @@ use ggez::{ContextBuilder, GameResult};
 pub mod internals;
 pub mod components;
 pub mod states;
+pub mod drawing;
 
 use crate::states::simulation::Simulation;
 
