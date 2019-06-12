@@ -4,7 +4,6 @@ use crate::internals::{
 };
 use crate::components::{
     colony::Colony,
-    ant::*,
     food::Food,
 };
 use crate::drawing::field_image;
@@ -23,7 +22,6 @@ pub const FOOD_COUNT: u32 = 20;
 pub struct Simulation {
     field: Field,
     colonies: Vec<Colony>,
-    ants: Vec<Ant>,
     ant_mesh: Mesh,
     food_mesh: Mesh,
     pheromones_mesh: Mesh,
@@ -40,7 +38,7 @@ impl Simulation {
             let x = rand::thread_rng().gen_range(0, FIELD_WIDTH);
             let y = rand::thread_rng().gen_range(0, FIELD_HEIGHT);
             let home = Coordinate::new(x, y);
-            colonies.push(Colony::new(home, 1000u32));
+            colonies.push(Colony::new(home, 1000usize));
         }
         
         let mut foods = vec!{};
@@ -52,18 +50,15 @@ impl Simulation {
             field.place_food_by_pos(pos);
         }
 
-        let ants = vec!{};
-
         let opt = StrokeOptions::default();
         let ant_mesh = Mesh::new_rectangle(ctx, DrawMode::Stroke(opt), Rect::new(0.0, 0.0, 1.0, 1.0), Color::from_rgb(0, 0, 255))?;
         let food_mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), Rect::new(-1.0, -1.0, 3.0, 3.0), Color::from_rgb(0, 150, 0))?;
-        let pheromones_mesh = Mesh::new_rectangle(ctx, DrawMode::Stroke(opt), Rect::new(0.0, 0.0, 1.0, 1.0), Color::from_rgb(255, 255, 100))?;
+        let pheromones_mesh = Mesh::new_rectangle(ctx, DrawMode::Stroke(opt), Rect::new(0.0, 0.0, 1.0, 1.0), Color::from_rgb(255, 255, 50))?;
         let field_img = field_image::make_field_image(ctx, &field)?;
 
         Ok(Simulation {
             field,
             colonies,
-            ants,
             ant_mesh,
             food_mesh,
             pheromones_mesh,
@@ -72,23 +67,14 @@ impl Simulation {
     }
 
     fn check_cells(&mut self) {
-        for ant in &mut self.ants {
-            ant.check_current_cell(&mut self.field);
+        for colony in &mut self.colonies {
+            colony.check_cells(&mut self.field);
         }
     }
 
-    fn spawn_ants(&mut self) {
-        for colony in &mut self.colonies {
-                if colony.ants_count < colony.max_ants {
-                    let ant = colony.make_ant();
-                    self.ants.push(ant);
-                }
-            }
-    }
-
     fn move_ants(&mut self) {
-        for ant in &mut self.ants {
-            ant.make_move(&mut self.field);
+        for colony in &mut self.colonies {
+            colony.move_ants(&mut self.field);
         }
     }
     
@@ -97,7 +83,6 @@ impl Simulation {
 impl EventHandler for Simulation {
     fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
         self.check_cells();
-        self.spawn_ants();
         self.move_ants();
         Ok(())
     }

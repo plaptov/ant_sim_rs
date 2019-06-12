@@ -3,7 +3,6 @@ use rand::Rng;
 use crate::internals::cell::Cell;
 use crate::internals::coordinate::Coordinate;
 use crate::internals::field::Field;
-use crate::components::colony::Colony;
 
 pub struct Ant {
     home: Coordinate,
@@ -21,19 +20,18 @@ pub enum AntMoveResult {
 }
 
 impl Ant {
-    pub fn new(colony: &Colony) -> Ant {
-        let cell = colony.home;
+    pub fn new(home: Coordinate) -> Ant {
         Ant {
-            home: cell,
-            current_cell: cell,
+            home,
+            current_cell: home,
             is_returning: false,
             is_good_returning: false,
             distance_to_food: 0,
-            current_path: vec![ cell ],
+            current_path: vec![ home ],
         }
     }
 
-    pub fn step_to(&mut self, pos: Coordinate) {
+    fn step_to(&mut self, pos: Coordinate) {
         if self.is_returning 
             && self.current_path.len() > 1 
             && self.current_path.last() == Some(&pos) 
@@ -46,7 +44,7 @@ impl Ant {
         self.current_cell = pos;
     }
 
-    pub fn can_move_to(&self, cell: &Cell) -> bool {
+    fn can_move_to(&self, cell: &Cell) -> bool {
         let pos = cell.position;
         !cell.is_obstacle 
         && pos != self.current_cell
@@ -54,8 +52,8 @@ impl Ant {
         && (!self.is_returning || self.current_path.last() == Some(&pos))
     }
 
-    fn die(&mut self) {
-
+    fn die(&mut self, field: &mut Field) {
+        field.get_mut_by_pos(self.current_cell).ants -= 1;
     }
 
     pub fn make_move(&mut self, field: &mut Field) -> AntMoveResult {
@@ -82,11 +80,12 @@ impl Ant {
         if steps.is_empty() {
             if !self.is_returning {
                 self.is_returning = true;
+                return AntMoveResult::Ok;
             }
             else {
-                self.die();
+                self.die(field);
+                return AntMoveResult::Died;
             }
-            return AntMoveResult::Died;
         }
 
         let mut next_pos = None;

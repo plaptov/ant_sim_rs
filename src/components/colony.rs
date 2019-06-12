@@ -1,29 +1,45 @@
 use crate::internals::coordinate::Coordinate;
-use crate::components::ant::Ant;
+use crate::internals::field::Field;
+use crate::components::ant::*;
 
 pub struct Colony {
     pub home: Coordinate,
-    pub ants_count: u32,
-    pub max_ants: u32,
+    pub max_ants: usize,
+    ants: Vec<Ant>,
 }
 
 impl Colony {
     
-    pub fn new(home: Coordinate, max_ants: u32) -> Colony {
+    pub fn new(home: Coordinate, max_ants: usize) -> Colony {
         Colony {
             home,
-            ants_count: 0,
             max_ants,
+            ants: Vec::with_capacity(max_ants),
+        }.inhabit()
+    }
+
+    fn inhabit(mut self) -> Self {
+        for _ in 0..self.max_ants {
+            self.ants.push(Ant::new(self.home));
+        }
+        self
+    }
+
+    pub fn check_cells(&mut self, field: &mut Field) {
+        for ant in &mut self.ants {
+            ant.check_current_cell(field);
         }
     }
 
-    pub fn make_ant(&mut self) -> Ant {
-        self.ants_count += 1;
-        Ant::new(self)
-    }
-
-    pub fn dead(&mut self, _ant: &Ant) {
-        self.ants_count -= 1;
+    pub fn move_ants(&mut self, field: &mut Field) {
+        for ant in self.ants.iter_mut() {
+            match ant.make_move(field) {
+                AntMoveResult::Ok => {},
+                AntMoveResult::Died => {
+                    *ant = Ant::new(self.home);
+                }
+            }
+        }
     }
 
 }
