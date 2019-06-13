@@ -10,7 +10,7 @@ use crate::drawing::field_image;
 
 use ggez::{Context, GameResult};
 use ggez::event::{EventHandler};
-use ggez::graphics::{self, *};
+use ggez::graphics::{self, *, spritebatch::SpriteBatch};
 use ggez::mint::Point2;
 use rand::Rng;
 
@@ -22,9 +22,9 @@ pub const FOOD_COUNT: u32 = 20;
 pub struct Simulation {
     field: Field,
     colonies: Vec<Colony>,
-    ant_mesh: Mesh,
+    ants_batch: SpriteBatch,
     food_mesh: Mesh,
-    pheromones_mesh: Mesh,
+    pheromones_batch: SpriteBatch,
     field_img: Canvas,
 }
 
@@ -50,18 +50,20 @@ impl Simulation {
             field.place_food_by_pos(pos);
         }
 
-        let opt = StrokeOptions::default();
-        let ant_mesh = Mesh::new_rectangle(ctx, DrawMode::Stroke(opt), Rect::new(0.0, 0.0, 1.0, 1.0), Color::from_rgb(0, 0, 255))?;
-        let food_mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), Rect::new(-1.0, -1.0, 3.0, 3.0), Color::from_rgb(0, 150, 0))?;
-        let pheromones_mesh = Mesh::new_rectangle(ctx, DrawMode::Stroke(opt), Rect::new(0.0, 0.0, 1.0, 1.0), Color::from_rgb(255, 255, 50))?;
+        let ant_image = graphics::Image::new(ctx, "/ant.png")?;
+        let ants_batch = graphics::spritebatch::SpriteBatch::new(ant_image);
+        let pheromone_image = graphics::Image::new(ctx, "/pheromone.png")?;
+        let pheromones_batch = graphics::spritebatch::SpriteBatch::new(pheromone_image);
+
+        let food_mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), Rect::new(-4.0, -4.0, 9.0, 9.0), Color::from_rgb(0, 150, 0))?;
         let field_img = field_image::make_field_image(ctx, &field)?;
 
         Ok(Simulation {
             field,
             colonies,
-            ant_mesh,
+            ants_batch,
             food_mesh,
-            pheromones_mesh,
+            pheromones_batch,
             field_img,
         })
     }
@@ -96,28 +98,23 @@ impl EventHandler for Simulation {
         graphics::draw(ctx, &self.field_img, DrawParam::default())?;
 
         for cell in self.field.get_cells() {
-            let mesh;
+            let point = Point2 { x: cell.position.x as f32, y: cell.position.y as f32 };
 
             if cell.food > 0 {
-                mesh = &self.food_mesh;
+                graphics::draw(ctx, &self.food_mesh, DrawParam::new().dest(point))?;
             }
             else if cell.ants > 0 {
-                mesh = &self.ant_mesh;
+                self.ants_batch.add(DrawParam::new().dest(point));
             }
             else if cell.pheromones > 0 {
-                mesh = &self.pheromones_mesh;
+                self.pheromones_batch.add(DrawParam::new().dest(point));
             }
-            else {
-                continue;
-            }
-
-            graphics::draw(ctx, mesh, DrawParam {
-                dest: Point2 { x: cell.position.x as f32, y: cell.position.y as f32 },
-                //color,
-                .. Default::default()
-            })?;
         }
 
+        graphics::draw(ctx, &self.ants_batch, DrawParam::default())?;
+        self.ants_batch.clear();
+        graphics::draw(ctx, &self.pheromones_batch, DrawParam::default())?;
+        self.pheromones_batch.clear();
         graphics::present(ctx)?;
         ggez::timer::yield_now();
         Ok(())
