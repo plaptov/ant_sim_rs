@@ -91,11 +91,12 @@ impl Ant {
         if steps.is_empty() {
             if !self.is_returning {
                 self.is_returning = true;
+                return AntMoveResult::Ok;
             }
             else {
                 self.die();
+                return AntMoveResult::Died;
             }
-            return AntMoveResult::Died;
         }
 
         let sum_attraction: i32 = steps.iter().map(|x| x.get_attraction()).sum();
