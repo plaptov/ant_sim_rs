@@ -20,7 +20,7 @@ fn main() -> GameResult<()> {
 
     let cb = ContextBuilder::new("antsim", "ggez")
         .window_setup(conf::WindowSetup::default().title("Ants simulation"))
-        .window_mode(conf::WindowMode::default().dimensions(800.0, 400.0).resizable(false))
+        .window_mode(conf::WindowMode::default().dimensions(1600.0, 800.0).resizable(false))
         .add_resource_path(resource_dir);
 
     let (ctx, events) = &mut cb.build()?;
