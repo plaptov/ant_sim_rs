@@ -43,11 +43,19 @@ impl Simulation {
         
         let mut foods = vec!{};
         for _ in 0..FOOD_COUNT {
-            let x = rand::thread_rng().gen_range(0, FIELD_WIDTH);
-            let y = rand::thread_rng().gen_range(0, FIELD_HEIGHT);
-            let pos = Coordinate::new(x, y);
-            foods.push(Food::new(pos));
-            field.place_food_by_pos(pos);
+            loop
+            {
+                let x = rand::thread_rng().gen_range(0, FIELD_WIDTH);
+                let y = rand::thread_rng().gen_range(0, FIELD_HEIGHT);
+                if field.get(x, y).is_obstacle
+                {
+                    continue;
+                }
+                let pos = Coordinate::new(x, y);
+                foods.push(Food::new(pos));
+                field.place_food_by_pos(pos);
+                break;
+            }
         }
 
         let ant_image = graphics::Image::new(ctx, "/ant.png")?;
