@@ -1,34 +1,17 @@
-extern crate amethyst;
-extern crate image;
-
-use std::path::PathBuf;
-use amethyst::{
-    assets::{AssetStorage, Loader},
-    core::transform::Transform,
-    prelude::*,
-    renderer::{
-        Camera, PngFormat, Projection, SpriteRender, SpriteSheet,
-        SpriteSheetFormat, SpriteSheetHandle, Texture, TextureMetadata,
-    },
-    ecs::prelude::*,
-};
-
-use image::ImageBuffer;
-
 use crate::internals::{
     field::Field,
     coordinate::Coordinate,
 };
-use crate::systems::{
-    spawn_ants::SpawnAnts,
-    check_cells::CheckCells,
-    move_ants::MoveAnts,
-};
 use crate::components::{
     colony::Colony,
-    ant::Ant,
     food::Food,
 };
+use crate::drawing::field_image;
+
+use ggez::{Context, GameResult};
+use ggez::event::{EventHandler};
+use ggez::graphics::{self, *, spritebatch::SpriteBatch};
+use ggez::mint::{Point2, Vector2};
 use rand::Rng;
 
 pub const FIELD_WIDTH: i32 = 800;
@@ -36,193 +19,119 @@ pub const FIELD_HEIGHT: i32 = 400;
 pub const COLONY_COUNT: i32 = 5;
 pub const FOOD_COUNT: u32 = 20;
 
-#[derive(Default)]
-pub struct Simulation<'d, 'e,> {
-    field_texture_file_name: Option<PathBuf>,
-    main_dispatcher: Option<Dispatcher<'d, 'e,>,>,
+pub struct Simulation {
+    field: Field,
+    colonies: Vec<Colony>,
+    ants_batch: SpriteBatch,
+    food_batch: SpriteBatch,
+    pheromones_batch: SpriteBatch,
+    field_img: Canvas,
 }
 
-impl<'d, 'e,> SimpleState for Simulation<'d, 'e,> {
-    fn on_start(&mut self, _data: StateData<'_, GameData<'_, '_>>) {
-        let world = _data.world;
+impl Simulation {
+
+    pub fn new(ctx: &mut Context) -> GameResult<Simulation> {
         let mut field = Field::new(FIELD_WIDTH, FIELD_HEIGHT);
 
-        self.initialise_camera(world);
-        let sprite_sheet = self.load_sprite_sheet(world);
-        let sprite_render = SpriteRender {
-            sprite_sheet: sprite_sheet.clone(),
-            sprite_number: 0, // ant is the first sprite in the sprite_sheet
-        };
-
-        self.make_field_texture(&field, world);
-
-        world.register::<Colony>();
-        world.register::<Ant>();
-        world.register::<SpriteRender>();
+        let mut colonies = vec!{};
         for _ in 0..COLONY_COUNT {
             let x = rand::thread_rng().gen_range(0, FIELD_WIDTH);
             let y = rand::thread_rng().gen_range(0, FIELD_HEIGHT);
             let home = Coordinate::new(x, y);
-            let mut transform = Transform::default();
-            transform.set_xyz(home.x as f32, home.y as f32, 0.0);
-            world.create_entity()
-                .with(Colony::new(home, 1000u32))
-                .with(SpriteRender {
-                    sprite_sheet: sprite_sheet.clone(),
-                    sprite_number: 1,
-                })
-                .with(transform)
-                .build();
+            colonies.push(Colony::new(home, 1000usize));
         }
         
-        world.register::<Food>();
+        let mut foods = vec!{};
         for _ in 0..FOOD_COUNT {
-            let x = rand::thread_rng().gen_range(0, FIELD_WIDTH);
-            let y = rand::thread_rng().gen_range(0, FIELD_HEIGHT);
-            let pos = Coordinate::new(x, y);
-            let mut transform = Transform::default();
-            transform.set_xyz(pos.x as f32, pos.y as f32, 0.0);
-            world.create_entity()
-                .with(Food::new(pos))
-                .with(SpriteRender {
-                    sprite_sheet: sprite_sheet.clone(),
-                    sprite_number: 3,
-                })
-                .with(transform)
-                .build();
-            
-            field.place_food_by_pos(pos);
+            loop
+            {
+                let x = rand::thread_rng().gen_range(0, FIELD_WIDTH);
+                let y = rand::thread_rng().gen_range(0, FIELD_HEIGHT);
+                if field.get(x, y).is_obstacle
+                {
+                    continue;
+                }
+                let pos = Coordinate::new(x, y);
+                foods.push(Food::new(pos));
+                field.place_food_by_pos(pos);
+                break;
+            }
         }
 
-        world.add_resource(field);
-        
+        let ant_image = graphics::Image::new(ctx, "/ant.png")?;
+        let ants_batch = graphics::spritebatch::SpriteBatch::new(ant_image);
+        let food_image = graphics::Image::new(ctx, "/food.png")?;
+        let food_batch = graphics::spritebatch::SpriteBatch::new(food_image);
+        let pheromone_image = graphics::Image::new(ctx, "/pheromone.png")?;
+        let pheromones_batch = graphics::spritebatch::SpriteBatch::new(pheromone_image);
 
-        self.main_dispatcher = Some({
-            let mut dispatcher = DispatcherBuilder::new()
-                .with(SpawnAnts::new(sprite_render.clone()), "spawn_ants_system", &[],)
-                .with(CheckCells {}, "check_cells_system", &["spawn_ants_system"])
-                .with(MoveAnts {}, "move_ants_system", &["spawn_ants_system", "check_cells_system"])
-                .build();
+        let field_img = field_image::make_field_image(ctx, &field)?;
 
-            dispatcher.setup(&mut world.res,);
+        Ok(Simulation {
+            field,
+            colonies,
+            ants_batch,
+            food_batch,
+            pheromones_batch,
+            field_img,
+        })
+    }
 
-            dispatcher
-        },);
+    fn check_cells(&mut self) {
+        for colony in &mut self.colonies {
+            colony.check_cells(&mut self.field);
+        }
+    }
+
+    fn move_ants(&mut self) {
+        for colony in &mut self.colonies {
+            colony.move_ants(&mut self.field);
+        }
     }
     
-    /// Executed repeatedly at stable, predictable intervals (1/60th of a second by default).
-    fn fixed_update(&mut self, _data: StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
-        Trans::None
-    }
-
-    /// Executed on every frame immediately, as fast as the engine will allow (taking into account the frame rate limit).
-    fn update(&mut self, data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
-        self.tick(data);
-        data.data.update(&data.world);
-        Trans::None
-    }
-
-    fn on_stop(&mut self, _data: StateData<'_, GameData<'_, '_>>) {
-        if let Some(file_name) = &self.field_texture_file_name {
-            std::fs::remove_file(file_name).unwrap();
-        }
-    }
-
 }
 
-impl<'d, 'e,> Simulation<'d, 'e,> {
-    
-    pub fn new() -> Simulation<'d, 'e,> {
-        Simulation {
-            field_texture_file_name: None,
-            main_dispatcher: None,
-        }
+impl EventHandler for Simulation {
+    fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
+        self.check_cells();
+        self.move_ants();
+        Ok(())
     }
 
-    fn initialise_camera(&self, world: &mut World) {
-        let mut transform = Transform::default();
-        transform.set_z(1.0);
-        world
-            .create_entity()
-            .with(Camera::from(Projection::orthographic(
-                0.0,
-                FIELD_WIDTH as f32,
-                0.0,
-                FIELD_HEIGHT as f32,
-            )))
-            .with(transform)
-            .build();
-    }
+    /// Called to do the drawing of your game.
+    /// You probably want to start this with
+    /// `graphics::clear()` and end it with
+    /// `graphics::present()` and `timer::yield_now()`
+    fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
+        let params = DrawParam::new().scale(Vector2 { x: 2.0, y: 2.0 });
 
-    fn load_sprite_sheet(&self, world: &mut World) -> SpriteSheetHandle {
-        // Load the sprite sheet necessary to render the graphics.
-        // The texture is the pixel data
-        // `sprite_sheet` is the layout of the sprites on the image
-        // `texture_handle` is a cloneable reference to the texture
-        let texture_handle = {
-            let loader = world.read_resource::<Loader>();
-            let texture_storage = world.read_resource::<AssetStorage<Texture>>();
-            loader.load(
-                "textures/ant.png",
-                PngFormat,
-                TextureMetadata::srgb_scale(),
-                (),
-                &texture_storage,
-            )
-        };
+        graphics::clear(ctx, graphics::WHITE);
+        graphics::draw(ctx, &self.field_img, params)?;
 
-        let loader = world.read_resource::<Loader>();
-        let sprite_sheet_store = world.read_resource::<AssetStorage<SpriteSheet>>();
-        loader.load(
-            "textures/ant.ron", // Here we load the associated ron file
-            SpriteSheetFormat,
-            texture_handle, // We pass it the texture we want it to use
-            (),
-            &sprite_sheet_store,
-        )
-    }
+        for cell in self.field.get_cells() {
+            let point = Point2 { x: cell.position.x as f32, y: cell.position.y as f32 };
+            let cur_params = params.dest(point);
 
-    fn tick(&mut self, _data: &mut StateData<'_, GameData<'_, '_>>) {
-        if let Some(disp) = &mut self.main_dispatcher {
-            let world = &_data.world;
-            disp.dispatch(&world.res);
-            _data.world.maintain();
-        }
-    }
-
-    fn make_field_texture(&mut self, field: &Field, world: &mut World) {
-        let img = ImageBuffer::from_fn(field.width as u32, field.height as u32, |x, y| {
-            if field.get(x as i32, y as i32).is_obstacle {
-                image::Rgb([60u8, 60u8, 60u8])
-            } else {
-                image::Rgb([255u8, 255u8, 255u8])
+            if cell.food > 0 {
+                let corrected_point = Point2 { x: point.x - 2.0, y: point.y - 2.0 };
+                self.food_batch.add(params.dest(corrected_point));
             }
-        });
+            else if cell.ants > 0 {
+                self.ants_batch.add(cur_params);
+            }
+            else if cell.pheromones > 0 {
+                self.pheromones_batch.add(cur_params);
+            }
+        }
 
-        let path = std::env::temp_dir().with_file_name("temp_ant_sim_field.png");
-        img.save(&path).unwrap();
-
-        let texture_handle = {
-            let loader = world.read_resource::<Loader>();
-            let texture_storage = world.read_resource::<AssetStorage<Texture>>();
-            loader.load(
-                path.to_str().unwrap(),
-                PngFormat,
-                TextureMetadata::srgb_scale(),
-                (),
-                &texture_storage,
-            )
-        };
-        self.field_texture_file_name = Some(path);
-
-        let mut transform = Transform::default();
-        transform.set_xyz(field.width as f32 / 2.0, field.height as f32 / 2.0, -1.0);
-
-        world
-            .create_entity()
-            .with(transform)
-            .with(texture_handle.clone())
-            .build();
+        graphics::draw(ctx, &self.food_batch, params)?;
+        self.food_batch.clear();
+        graphics::draw(ctx, &self.ants_batch, params)?;
+        self.ants_batch.clear();
+        graphics::draw(ctx, &self.pheromones_batch, params)?;
+        self.pheromones_batch.clear();
+        graphics::present(ctx)?;
+        ggez::timer::yield_now();
+        Ok(())
     }
-
 }

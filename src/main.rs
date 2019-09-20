@@ -1,55 +1,30 @@
 #![warn(clippy::all)]
-extern crate amethyst;
+extern crate ggez;
+extern crate gfx;
 
-use amethyst::{
-    prelude::*,
-    renderer::{DisplayConfig, DrawFlat2D, Pipeline, RenderBundle, Stage},
-    utils::application_root_dir,
-    LoggerConfig,
-    core::transform::TransformBundle,
-    input::InputBundle,
-};
-use log::LevelFilter;
+use std::path;
+use ggez::conf;
+use ggez::event;
+use ggez::{ContextBuilder, GameResult};
 
 pub mod internals;
 pub mod components;
-pub mod systems;
-pub mod bundle;
 pub mod states;
+pub mod drawing;
 
-use crate::bundle::*;
 use crate::states::simulation::Simulation;
 
-fn main() -> amethyst::Result<()> {
+fn main() -> GameResult<()> {
     color_backtrace::install();
-    let mut logger_config = LoggerConfig::default();
-    logger_config.level_filter = LevelFilter::Error;
-    amethyst::start_logger(logger_config);
+    let resource_dir = path::PathBuf::from("./resources");
 
-    let path = format!(
-        "{}/resources/display_config.ron",
-        application_root_dir()
-    );
-    let config = DisplayConfig::load(&path);
+    let cb = ContextBuilder::new("antsim", "ggez")
+        .window_setup(conf::WindowSetup::default().title("Ants simulation"))
+        .window_mode(conf::WindowMode::default().dimensions(1600.0, 800.0).resizable(false))
+        .add_resource_path(resource_dir);
 
-    let pipe = Pipeline::build().with_stage(
-        Stage::with_backbuffer()
-            .clear_target([1.0, 1.0, 1.0, 1.0], 1.0)
-            .with_pass(DrawFlat2D::new())
-    );
+    let (ctx, events) = &mut cb.build()?;
 
-    let game_data =
-        GameDataBuilder::default()
-        .with_bundle(RenderBundle::new(pipe, Some(config))
-            .with_sprite_sheet_processor()
-        )?
-        .with_bundle(TransformBundle::new())?
-        .with_bundle(InputBundle::<String, String>::new())?
-        .with_bundle(AntSimBundle{})?
-        ;
-    let mut game = Application::new("./", Simulation::new(), game_data)?;
-
-    game.run();
-
-    Ok(())
+    let game = &mut Simulation::new(ctx)?;
+    event::run(ctx, events, game)
 }

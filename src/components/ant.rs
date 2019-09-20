@@ -1,14 +1,10 @@
 use rand::Rng;
-use amethyst::ecs::{Component, VecStorage};
-use specs::world::Index;
 
 use crate::internals::cell::Cell;
 use crate::internals::coordinate::Coordinate;
 use crate::internals::field::Field;
-use crate::components::colony::Colony;
 
 pub struct Ant {
-    pub colony_id: Index,
     home: Coordinate,
     pub current_cell: Coordinate,
     is_returning: bool,
@@ -23,26 +19,19 @@ pub enum AntMoveResult {
     Died,
 }
 
-impl Component for Ant {
-    type Storage = VecStorage<Self>;
-}
-
 impl Ant {
-    pub fn new(colony: &Colony, colony_id: Index) -> Ant {
-        let cell = colony.home;
+    pub fn new(home: Coordinate) -> Ant {
         Ant {
-            colony_id,
-            home: cell,
-            current_cell: cell,
+            home,
+            current_cell: home,
             is_returning: false,
             is_good_returning: false,
             distance_to_food: 0,
-            current_path: vec![ cell ],
+            current_path: vec![ home ],
         }
     }
 
-    pub fn step_to(&mut self, cell: &Cell) {
-        let pos = cell.position;
+    fn step_to(&mut self, pos: Coordinate) {
         if self.is_returning 
             && self.current_path.len() > 1 
             && self.current_path.last() == Some(&pos) 
@@ -55,7 +44,7 @@ impl Ant {
         self.current_cell = pos;
     }
 
-    pub fn can_move_to(&self, cell: &Cell) -> bool {
+    fn can_move_to(&self, cell: &Cell) -> bool {
         let pos = cell.position;
         !cell.is_obstacle 
         && pos != self.current_cell
@@ -63,11 +52,11 @@ impl Ant {
         && (!self.is_returning || self.current_path.last() == Some(&pos))
     }
 
-    fn die(&mut self) {
-
+    fn die(&mut self, field: &mut Field) {
+        field.get_mut_by_pos(self.current_cell).ants -= 1;
     }
 
-    pub fn make_move(&mut self, field: &Field) -> AntMoveResult {
+    pub fn make_move(&mut self, field: &mut Field) -> AntMoveResult {
         if self.current_cell == self.home {
             self.is_returning = false;
             self.is_good_returning = false;
@@ -94,20 +83,28 @@ impl Ant {
                 return AntMoveResult::Ok;
             }
             else {
-                self.die();
+                self.die(field);
                 return AntMoveResult::Died;
             }
         }
+
+        let mut next_pos = None;
 
         let sum_attraction: i32 = steps.iter().map(|x| x.get_attraction()).sum();
         let mut val = rand::thread_rng().gen_range(0, sum_attraction);
         for step in steps {
             let att = step.get_attraction();
             if val <= att {
-                self.step_to(step);
+                next_pos = Some(step.position);
                 break;
             }
             val -= att;
+        }
+
+        if let Some(pos) = next_pos {
+            field.get_mut_by_pos(self.current_cell).ants -= 1;
+            self.step_to(pos);
+            field.get_mut_by_pos(self.current_cell).ants += 1;
         }
 
         AntMoveResult::Ok
