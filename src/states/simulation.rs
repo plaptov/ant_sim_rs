@@ -23,7 +23,7 @@ pub struct Simulation {
     field: Field,
     colonies: Vec<Colony>,
     ants_batch: SpriteBatch,
-    food_mesh: Mesh,
+    food_batch: SpriteBatch,
     pheromones_batch: SpriteBatch,
     field_img: Canvas,
 }
@@ -52,17 +52,18 @@ impl Simulation {
 
         let ant_image = graphics::Image::new(ctx, "/ant.png")?;
         let ants_batch = graphics::spritebatch::SpriteBatch::new(ant_image);
+        let food_image = graphics::Image::new(ctx, "/food.png")?;
+        let food_batch = graphics::spritebatch::SpriteBatch::new(food_image);
         let pheromone_image = graphics::Image::new(ctx, "/pheromone.png")?;
         let pheromones_batch = graphics::spritebatch::SpriteBatch::new(pheromone_image);
 
-        let food_mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), Rect::new(-4.0, -4.0, 9.0, 9.0), Color::from_rgb(0, 150, 0))?;
         let field_img = field_image::make_field_image(ctx, &field)?;
 
         Ok(Simulation {
             field,
             colonies,
             ants_batch,
-            food_mesh,
+            food_batch,
             pheromones_batch,
             field_img,
         })
@@ -104,7 +105,8 @@ impl EventHandler for Simulation {
             let cur_params = params.dest(point);
 
             if cell.food > 0 {
-                graphics::draw(ctx, &self.food_mesh, cur_params)?;
+                let corrected_point = Point2 { x: point.x - 2.0, y: point.y - 2.0 };
+                self.food_batch.add(params.dest(corrected_point));
             }
             else if cell.ants > 0 {
                 self.ants_batch.add(cur_params);
@@ -114,6 +116,8 @@ impl EventHandler for Simulation {
             }
         }
 
+        graphics::draw(ctx, &self.food_batch, params)?;
+        self.food_batch.clear();
         graphics::draw(ctx, &self.ants_batch, params)?;
         self.ants_batch.clear();
         graphics::draw(ctx, &self.pheromones_batch, params)?;
